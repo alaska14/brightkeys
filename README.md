@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://monolab-apps.gumroad.com"><img src="https://img.shields.io/badge/Gumroad-Buy%20Direct-FF90E8?style=flat-square&logo=gumroad" alt="Buy Direct on Gumroad"></a>
+  <a href="https://monolabapps.gumroad.com"><img src="https://img.shields.io/badge/Gumroad-Buy%20Direct-FF90E8?style=flat-square&logo=gumroad" alt="Buy Direct on Gumroad"></a>
   <a href="https://github.com/alaska14/brightkeys/releases/latest"><img src="https://img.shields.io/badge/Download-DMG-blue?style=flat-square" alt="Download DMG"></a>
   <a href="https://github.com/alaska14/homebrew-tap"><img src="https://img.shields.io/badge/Homebrew-Tap-orange?style=flat-square" alt="Homebrew Tap"></a>
 </p>
