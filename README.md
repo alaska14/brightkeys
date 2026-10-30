@@ -10,9 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://monolabapps.gumroad.com"><img src="https://img.shields.io/badge/Gumroad-Buy%20Direct-FF90E8?style=flat-square&logo=gumroad" alt="Buy Direct on Gumroad"></a>
-  <a href="https://github.com/alaska14/brightkeys/releases/latest"><img src="https://img.shields.io/badge/Download-DMG-blue?style=flat-square" alt="Download DMG"></a>
-  <a href="https://github.com/alaska14/homebrew-tap"><img src="https://img.shields.io/badge/Homebrew-Tap-orange?style=flat-square" alt="Homebrew Tap"></a>
+  <a href="https://monolabapps.gumroad.com/l/brightkeys"><img src="https://img.shields.io/badge/Get_it_on_Gumroad-%242.99+-FF90E8?style=flat-square&logo=gumroad" alt="Get it on Gumroad"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="License: MIT"></a>
 </p>
 
 ---
@@ -46,20 +45,21 @@ To get their keys back, users have historically had to install bloated tools lik
 
 ## Installation
 
-### Option 1: Direct Download
-Download the latest `BrightKeys-<version>.dmg` from the [Releases](https://github.com/alaska14/brightkeys/releases/latest) page, open it, and drag `BrightKeys.app` to `/Applications`.
-
-### Option 2: Homebrew
-```bash
-brew tap alaska14/tap
-brew trust alaska14/tap   # Homebrew 7+ requires trusting third-party taps
-brew install --cask brightkeys
-```
+### Get BrightKeys on Gumroad (recommended)
+**[monolabapps.gumroad.com/l/brightkeys](https://monolabapps.gumroad.com/l/brightkeys)** gives you the ready-to-use app as a DMG, plus future updates. Open the DMG and drag `BrightKeys.app` to `/Applications`.
 
 > **First launch:** MonoLab apps are not notarized by Apple yet. If macOS says the app can't be verified, right-click the app → **Open** (or System Settings → Privacy & Security → **Open Anyway**) once.
 
+### Build from source
+BrightKeys is open source (MIT). If you prefer to build it yourself, you need Apple's Command Line Tools (`xcode-select --install`):
+```bash
+git clone https://github.com/alaska14/brightkeys.git
+cd brightkeys
+./build.sh          # creates build/BrightKeys.app
+```
+
 ### Uninstall
-`brew uninstall brightkeys` removes the app, its login item and its F5/F6 mappings. If you installed manually: open BrightKeys → **Quit BrightKeys**, then drag it to the Trash.
+Open BrightKeys → **Quit BrightKeys** (this gives F5/F6 back to Apple's defaults), then drag it to the Trash and remove it from System Settings → General → Login Items.
 
 ---
 
@@ -75,4 +75,4 @@ Part of the **MonoLab** micro-utility suite:
 
 ## License
 
-MIT License. Crafted with precision for macOS.
+[MIT License](LICENSE). Crafted with precision for macOS.
