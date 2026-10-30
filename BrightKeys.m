@@ -1,5 +1,7 @@
 #import <Cocoa/Cocoa.h>
 #import <IOKit/IOKitLib.h>
+#import <IOKit/hidsystem/IOHIDEventSystemClient.h>
+#import <IOKit/hid/IOHIDProperties.h>
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @end
@@ -43,8 +45,8 @@
     // 2. Apply Kernel Key Remapping
     [self applyKeyRemapping];
 
-    // 3. Ensure LaunchAgent & Login Item are configured for silent boot persistence
-    [self ensureLaunchAgent];
+    // 3. Login item for silent boot persistence (legacy LaunchAgent removed to avoid double launch)
+    [self removeLegacyLaunchAgent];
     [self ensureAutoStart];
 
     // 4. Watch for Sleep / Wake / Display changes to re-arm kernel mapping
@@ -72,58 +74,60 @@
 
 #pragma mark - Kernel Key Remapping
 
-- (void)applyKeyRemapping {
-    NSTask *task = [[NSTask alloc] init];
-    task.launchPath = @"/usr/bin/hidutil";
-    task.arguments = @[
-        @"property",
-        @"--set",
-        @"{\"UserKeyMapping\":["
-          "{\"HIDKeyboardModifierMappingSrc\":51539607759,\"HIDKeyboardModifierMappingDst\":1095216660489}," // F5 Mic -> illumination_down
-          "{\"HIDKeyboardModifierMappingSrc\":4294967451,\"HIDKeyboardModifierMappingDst\":1095216660488},"  // F6 Moon -> illumination_up
-          "{\"HIDKeyboardModifierMappingSrc\":30064771134,\"HIDKeyboardModifierMappingDst\":1095216660489}," // F5 Raw -> illumination_down
-          "{\"HIDKeyboardModifierMappingSrc\":30064771135,\"HIDKeyboardModifierMappingDst\":1095216660488}"  // F6 Raw -> illumination_up
-        @"]}"
+// Our four mappings: F5 (Dictation/mic) & raw F5 -> keyboard illumination down,
+// F6 (Do Not Disturb/moon) & raw F6 -> keyboard illumination up.
+static NSArray<NSDictionary *> *BrightKeysMappings(void) {
+    return @[
+        @{@"HIDKeyboardModifierMappingSrc": @(0xC000000CFULL),  @"HIDKeyboardModifierMappingDst": @(0xFF00000009ULL)}, // F5 Mic  -> illumination_down
+        @{@"HIDKeyboardModifierMappingSrc": @(0x10000009BULL),  @"HIDKeyboardModifierMappingDst": @(0xFF00000008ULL)}, // F6 Moon -> illumination_up
+        @{@"HIDKeyboardModifierMappingSrc": @(0x70000003EULL),  @"HIDKeyboardModifierMappingDst": @(0xFF00000009ULL)}, // F5 Raw  -> illumination_down
+        @{@"HIDKeyboardModifierMappingSrc": @(0x70000003FULL),  @"HIDKeyboardModifierMappingDst": @(0xFF00000008ULL)}, // F6 Raw  -> illumination_up
     ];
-    @try {
-        [task launch];
-        [task waitUntilExit];
-    } @catch (NSException *e) {}
+}
+
+// Returns the user's existing UserKeyMapping entries minus any that use one of our source keys,
+// so we never clobber remaps the user (or another tool) has set up.
+static NSMutableArray *BrightKeysForeignMappings(IOHIDEventSystemClientRef client) {
+    NSMutableArray *result = [NSMutableArray array];
+    CFTypeRef current = IOHIDEventSystemClientCopyProperty(client, CFSTR(kIOHIDUserKeyUsageMapKey));
+    if (current) {
+        NSArray *arr = (__bridge_transfer NSArray *)current;
+        if ([arr isKindOfClass:[NSArray class]]) {
+            NSSet *ourSrcs = [NSSet setWithArray:[BrightKeysMappings() valueForKey:@"HIDKeyboardModifierMappingSrc"]];
+            for (NSDictionary *entry in arr) {
+                if (![entry isKindOfClass:[NSDictionary class]]) continue;
+                if ([ourSrcs containsObject:entry[@"HIDKeyboardModifierMappingSrc"]]) continue;
+                [result addObject:entry];
+            }
+        }
+    }
+    return result;
+}
+
+static void BrightKeysSetMapping(BOOL enabled) {
+    IOHIDEventSystemClientRef client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault);
+    if (!client) return;
+    NSMutableArray *mapping = BrightKeysForeignMappings(client);
+    if (enabled) [mapping addObjectsFromArray:BrightKeysMappings()];
+    IOHIDEventSystemClientSetProperty(client, CFSTR(kIOHIDUserKeyUsageMapKey), (__bridge CFArrayRef)mapping);
+    CFRelease(client);
+}
+
+- (void)applyKeyRemapping {
+    BrightKeysSetMapping(YES);
 }
 
 - (void)removeKeyRemapping {
-    NSTask *task = [[NSTask alloc] init];
-    task.launchPath = @"/usr/bin/hidutil";
-    task.arguments = @[@"property", @"--set", @"{\"UserKeyMapping\":[]}"];
-    @try {
-        [task launch];
-        [task waitUntilExit];
-    } @catch (NSException *e) {}
+    BrightKeysSetMapping(NO);
 }
 
-- (void)ensureLaunchAgent {
-    NSString *plistDir = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/LaunchAgents"];
-    NSString *plistPath = [plistDir stringByAppendingPathComponent:@"com.monolab.brightkeys.plist"];
-
-    [[NSFileManager defaultManager] createDirectoryAtPath:plistDir withIntermediateDirectories:YES attributes:nil error:nil];
-    NSString *plistContent = [NSString stringWithFormat:
-        @"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        @"<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
-        @"<plist version=\"1.0\">\n"
-        @"<dict>\n"
-        @"    <key>Label</key>\n"
-        @"    <string>com.monolab.brightkeys</string>\n"
-        @"    <key>ProgramArguments</key>\n"
-        @"    <array>\n"
-        @"        <string>/Applications/BrightKeys.app/Contents/MacOS/BrightKeys</string>\n"
-        @"    </array>\n"
-        @"    <key>RunAtLoad</key>\n"
-        @"    <true/>\n"
-        @"    <key>KeepAlive</key>\n"
-        @"    <false/>\n"
-        @"</dict>\n"
-        @"</plist>\n"];
-    [plistContent writeToFile:plistPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+- (void)removeLegacyLaunchAgent {
+    // Older builds installed a LaunchAgent *and* a login item, which started BrightKeys twice
+    // at login (the second copy showed the "Keep Running / Quit" dialog). The login item alone is enough.
+    NSString *plistPath = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/LaunchAgents/com.monolab.brightkeys.plist"];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:plistPath]) {
+        [[NSFileManager defaultManager] removeItemAtPath:plistPath error:nil];
+    }
 }
 
 - (void)ensureAutoStart {
@@ -154,6 +158,14 @@
 
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
+        // `BrightKeys --remove-mapping` removes only BrightKeys' F5/F6 mappings and exits
+        // (used by the Homebrew uninstall hook).
+        for (int i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "--remove-mapping") == 0) {
+                BrightKeysSetMapping(NO);
+                return 0;
+            }
+        }
         NSApplication *app = [NSApplication sharedApplication];
         AppDelegate *delegate = [[AppDelegate alloc] init];
         app.delegate = delegate;
